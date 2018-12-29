@@ -87,10 +87,17 @@ namespace RestSharp
         {
             var webRequest = ConfigureWebRequest(method, Url);
 
-            if (HasBody && (method == "DELETE" || method == "OPTIONS"))
+            if (HasBody)
             {
-                webRequest.ContentType = RequestContentType;
-                WriteRequestBody(webRequest);
+                if (method == "DELETE" || method == "OPTIONS")
+                {
+                    webRequest.ContentType = RequestContentType;
+                    WriteRequestBody(webRequest);
+                }
+                else
+                {
+                    throw new NotSupportedException($"Http verb {method} does not support body");
+                }
             }
 
             return GetResponse(webRequest);
@@ -111,7 +118,8 @@ namespace RestSharp
             restrictedHeaderActions.Add("Connection", (r, v) => { r.KeepAlive = v.ToLower().Contains("keep-alive"); });
             restrictedHeaderActions.Add("Content-Length", (r, v) => r.ContentLength = Convert.ToInt64(v));
             restrictedHeaderActions.Add("Expect", (r, v) => r.Expect = v);
-            restrictedHeaderActions.Add("If-Modified-Since", (r, v) => r.IfModifiedSince = Convert.ToDateTime(v, CultureInfo.InvariantCulture));
+            restrictedHeaderActions.Add("If-Modified-Since",
+                (r, v) => r.IfModifiedSince = Convert.ToDateTime(v, CultureInfo.InvariantCulture));
             restrictedHeaderActions.Add("Referer", (r, v) => r.Referer = v);
             restrictedHeaderActions.Add("Transfer-Encoding", (r, v) =>
             {
@@ -212,7 +220,7 @@ namespace RestSharp
             {
                 // Avoid to crash in UWP apps
             }
-            
+
             AppendHeaders(webRequest);
             AppendCookies(webRequest);
 
@@ -232,8 +240,8 @@ namespace RestSharp
 
             if (ClientCertificates != null)
                 webRequest.ClientCertificates.AddRange(ClientCertificates);
-            
-            AllowedDecompressionMethods.ForEach(x => { webRequest.AutomaticDecompression |= x; });            
+
+            AllowedDecompressionMethods.ForEach(x => { webRequest.AutomaticDecompression |= x; });
 
             if (AutomaticDecompression)
             {

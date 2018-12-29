@@ -26,9 +26,7 @@ namespace RestSharp.IntegrationTests
 
                 request.AddParameter(contentType, bodyData, ParameterType.RequestBody);
 
-                client.Execute(request);
-
-                AssertHasNoRequestBody();
+                Assert.Throws<NotSupportedException>(() => client.Execute(request));
             }
         }
 
