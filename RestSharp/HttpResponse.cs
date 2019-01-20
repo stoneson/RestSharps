@@ -35,9 +35,9 @@ namespace RestSharp
         /// </summary>
         public HttpResponse()
         {
-            this.ResponseStatus = ResponseStatus.None;
-            this.Headers = new List<HttpHeader>();
-            this.Cookies = new List<HttpCookie>();
+            ResponseStatus = ResponseStatus.None;
+            Headers = new List<HttpHeader>();
+            Cookies = new List<HttpCookie>();
         }
 
         /// <summary>
@@ -91,12 +91,12 @@ namespace RestSharp
         /// <summary>
         /// Headers returned by server with the response
         /// </summary>
-        public IList<HttpHeader> Headers { get; private set; }
+        public IList<HttpHeader> Headers { get; internal set; }
 
         /// <summary>
         /// Cookies returned by server with the response
         /// </summary>
-        public IList<HttpCookie> Cookies { get; private set; }
+        public IList<HttpCookie> Cookies { get; }
 
         /// <summary>
         /// Status of the request. Will return Error for transport errors.

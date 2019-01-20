@@ -297,9 +297,12 @@ namespace RestSharp
         private void AppendCookies(HttpWebRequest webRequest)
         {
             webRequest.CookieContainer = CookieContainer ?? new CookieContainer();
+            var cookies = webRequest.CookieContainer.GetCookies(webRequest.RequestUri);
 
             foreach (var httpCookie in Cookies)
             {
+                if (cookies[httpCookie.Name] != null) continue;
+                
                 var cookie = new Cookie
                 {
                     Name = httpCookie.Name,
@@ -363,57 +366,47 @@ namespace RestSharp
             WriteStringTo(requestStream, GetMultipartFooter());
         }
 
-        private void ExtractResponseData(HttpResponse response, HttpWebResponse webResponse)
+        private HttpResponse ExtractResponseData(HttpWebResponse webResponse)
         {
-            using (webResponse)
+            var response = new HttpResponse
             {
-                response.ContentEncoding = webResponse.ContentEncoding;
-                response.Server = webResponse.Server;
-                response.ProtocolVersion = webResponse.ProtocolVersion;
-                response.ContentType = webResponse.ContentType;
-                response.ContentLength = webResponse.ContentLength;
+                ContentEncoding = webResponse.ContentEncoding,
+                Server = webResponse.Server,
+                ProtocolVersion = webResponse.ProtocolVersion,
+                ContentType = webResponse.ContentType,
+                ContentLength = webResponse.ContentLength,
+                StatusCode = webResponse.StatusCode,
+                StatusDescription = webResponse.StatusDescription,
+                ResponseUri = webResponse.ResponseUri,
+                ResponseStatus = ResponseStatus.Completed,
+                Headers = webResponse.Headers.AllKeys
+                    .Select(x => new HttpHeader {Name = x, Value = webResponse.Headers[x]}).ToList()
+            };
 
-                response.StatusCode = webResponse.StatusCode;
-                response.StatusDescription = webResponse.StatusDescription;
-                response.ResponseUri = webResponse.ResponseUri;
-                response.ResponseStatus = ResponseStatus.Completed;
-
-                if (webResponse.Cookies != null)
-                    foreach (Cookie cookie in webResponse.Cookies)
-                        response.Cookies.Add(new HttpCookie
-                        {
-                            Comment = cookie.Comment,
-                            CommentUri = cookie.CommentUri,
-                            Discard = cookie.Discard,
-                            Domain = cookie.Domain,
-                            Expired = cookie.Expired,
-                            Expires = cookie.Expires,
-                            HttpOnly = cookie.HttpOnly,
-                            Name = cookie.Name,
-                            Path = cookie.Path,
-                            Port = cookie.Port,
-                            Secure = cookie.Secure,
-                            TimeStamp = cookie.TimeStamp,
-                            Value = cookie.Value,
-                            Version = cookie.Version
-                        });
-
-                foreach (var headerName in webResponse.Headers.AllKeys)
-                {
-                    var headerValue = webResponse.Headers[headerName];
-
-                    response.Headers.Add(new HttpHeader
+            if (webResponse.Cookies != null)
+                foreach (Cookie cookie in webResponse.Cookies)
+                    response.Cookies.Add(new HttpCookie
                     {
-                        Name = headerName,
-                        Value = headerValue
+                        Comment = cookie.Comment,
+                        CommentUri = cookie.CommentUri,
+                        Discard = cookie.Discard,
+                        Domain = cookie.Domain,
+                        Expired = cookie.Expired,
+                        Expires = cookie.Expires,
+                        HttpOnly = cookie.HttpOnly,
+                        Name = cookie.Name,
+                        Path = cookie.Path,
+                        Port = cookie.Port,
+                        Secure = cookie.Secure,
+                        TimeStamp = cookie.TimeStamp,
+                        Value = cookie.Value,
+                        Version = cookie.Version
                     });
-                }
 
-                var webResponseStream = webResponse.GetResponseStream();
-                ProcessResponseStream(webResponseStream, response);
+            ProcessResponseStream(webResponse.GetResponseStream(), response);
 
-                webResponse.Close();
-            }
+            webResponse.Close();
+            return response;
         }
 
         private void ProcessResponseStream(Stream webResponseStream, HttpResponse response)

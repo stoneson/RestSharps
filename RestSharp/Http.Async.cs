@@ -84,7 +84,7 @@ namespace RestSharp
                 else
                 {
                     timeoutState = new TimeOutState {Request = webRequest};
-
+                    
                     var asyncResult = webRequest.BeginGetResponse(
                         result => ResponseCallback(result, callback), webRequest);
 
@@ -188,9 +188,7 @@ namespace RestSharp
 
             if (timeoutState.TimedOut)
             {
-                var response = new HttpResponse {ResponseStatus = ResponseStatus.TimedOut};
-
-                ExecuteCallback(response, callback);
+                ExecuteCallback(new HttpResponse {ResponseStatus = ResponseStatus.TimedOut}, callback);
 
                 return;
             }
@@ -271,26 +269,22 @@ namespace RestSharp
             callback(raw);
 
             raw?.Close();
+            raw?.Dispose();
         }
 
         private void ResponseCallback(IAsyncResult result, Action<HttpResponse> callback)
         {
-            var response = new HttpResponse {ResponseStatus = ResponseStatus.None};
-
             try
             {
                 if (timeoutState.TimedOut)
                 {
-                    response.ResponseStatus = ResponseStatus.TimedOut;
-                    ExecuteCallback(response, callback);
-
+                    ExecuteCallback(new HttpResponse{ResponseStatus = ResponseStatus.TimedOut}, callback);
                     return;
                 }
 
                 GetRawResponseAsync(result, webResponse =>
                 {
-                    ExtractResponseData(response, webResponse);
-                    ExecuteCallback(response, callback);
+                    ExecuteCallback(ExtractResponseData(webResponse), callback);
                 });
             }
             catch (Exception ex)
@@ -315,10 +309,8 @@ namespace RestSharp
         }
 
         [Obsolete("Use the WebRequestConfigurator delegate instead of overriding this method")]
-        protected virtual HttpWebRequest ConfigureAsyncWebRequest(string method, Uri url)
-        {
-            return ConfigureWebRequest(method, url);
-        }
+        protected virtual HttpWebRequest ConfigureAsyncWebRequest(string method, Uri url) => 
+            ConfigureWebRequest(method, url);
 
         private class TimeOutState
         {

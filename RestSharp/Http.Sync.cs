@@ -19,6 +19,7 @@
 using System;
 using System.Globalization;
 using System.Net;
+using System.Runtime.InteropServices;
 using RestSharp.Extensions;
 using RestSharp.Authenticators.OAuth.Extensions;
 
@@ -111,7 +112,8 @@ namespace RestSharp
             restrictedHeaderActions.Add("Connection", (r, v) => { r.KeepAlive = v.ToLower().Contains("keep-alive"); });
             restrictedHeaderActions.Add("Content-Length", (r, v) => r.ContentLength = Convert.ToInt64(v));
             restrictedHeaderActions.Add("Expect", (r, v) => r.Expect = v);
-            restrictedHeaderActions.Add("If-Modified-Since", (r, v) => r.IfModifiedSince = Convert.ToDateTime(v, CultureInfo.InvariantCulture));
+            restrictedHeaderActions.Add("If-Modified-Since",
+                (r, v) => r.IfModifiedSince = Convert.ToDateTime(v, CultureInfo.InvariantCulture));
             restrictedHeaderActions.Add("Referer", (r, v) => r.Referer = v);
             restrictedHeaderActions.Add("Transfer-Encoding", (r, v) =>
             {
@@ -121,8 +123,9 @@ namespace RestSharp
             restrictedHeaderActions.Add("User-Agent", (r, v) => r.UserAgent = v);
         }
 
-        private static void ExtractErrorResponse(IHttpResponse httpResponse, Exception ex)
+        private static HttpResponse ExtractErrorResponse(Exception ex)
         {
+            var httpResponse = new HttpResponse();
             if (ex is WebException webException && webException.Status == WebExceptionStatus.Timeout)
             {
                 httpResponse.ResponseStatus = ResponseStatus.TimedOut;
@@ -135,31 +138,43 @@ namespace RestSharp
                 httpResponse.ErrorException = ex;
                 httpResponse.ResponseStatus = ResponseStatus.Error;
             }
+
+            return httpResponse;
         }
 
         private HttpResponse GetResponse(HttpWebRequest request)
         {
-            var response = new HttpResponse {ResponseStatus = ResponseStatus.None};
-
             try
             {
-                var webResponse = GetRawResponse(request);
-
-                ExtractResponseData(response, webResponse);
+                using (var webResponse = GetRawResponse(request))
+                {
+                    return ExtractResponseData(webResponse);
+                }
             }
             catch (Exception ex)
             {
-                ExtractErrorResponse(response, ex);
+                return ExtractErrorResponse(ex);
             }
-
-            return response;
         }
 
-        private static HttpWebResponse GetRawResponse(HttpWebRequest request)
+        private HttpWebResponse GetRawResponse(HttpWebRequest request)
         {
             try
             {
-                return (HttpWebResponse) request.GetResponse();
+                var followRedirect = request.AllowAutoRedirect;
+                request.AllowAutoRedirect = false;
+
+                var response = (HttpWebResponse) request.GetResponse();
+                while (followRedirect && response.StatusCode == HttpStatusCode.Found)
+                {
+                    var follow = response.Headers["Location"];
+                    response.Close();
+                    response.Dispose();
+                    request = GetNewRequest(follow, request.Method);
+                    response = (HttpWebResponse) request.GetResponse();
+                }
+
+                return response;
             }
             catch (WebException ex)
             {
@@ -173,6 +188,13 @@ namespace RestSharp
                     return response;
 
                 throw;
+            }
+
+            HttpWebRequest GetNewRequest(string targetUrl, string method)
+            {
+                var req = ConfigureWebRequest(method, new Uri(targetUrl));
+                req.AllowAutoRedirect = false;
+                return request;
             }
         }
 
@@ -213,7 +235,7 @@ namespace RestSharp
             {
                 // Avoid to crash in UWP apps
             }
-            
+
             AppendHeaders(webRequest);
             AppendCookies(webRequest);
 
@@ -233,8 +255,8 @@ namespace RestSharp
 
             if (ClientCertificates != null)
                 webRequest.ClientCertificates.AddRange(ClientCertificates);
-            
-            AllowedDecompressionMethods.ForEach(x => { webRequest.AutomaticDecompression |= x; });            
+
+            AllowedDecompressionMethods.ForEach(x => { webRequest.AutomaticDecompression |= x; });
 
             if (AutomaticDecompression)
             {
